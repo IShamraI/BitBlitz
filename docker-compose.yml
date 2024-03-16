@@ -1,0 +1,15 @@
+version: '3'
+services:
+  blitz:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    restart: always
+    volumes:
+      - ./output.csv:/app/output.csv
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+      - OUTPUT_FILE=${OUTPUT_FILE}
+      - THREADS=${THREADS}
+      - INTERVAL=${INTERVAL}
