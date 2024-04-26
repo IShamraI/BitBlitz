@@ -7,9 +7,29 @@ services:
     restart: always
     volumes:
       - ./output.csv:/app/output.csv
+      - btcd-data:/root/.btcd
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - CHAT_ID=${CHAT_ID}
       - OUTPUT_FILE=${OUTPUT_FILE}
-      - THREADS=${THREADS}
-      - INTERVAL=${INTERVAL}
+      - RATE=${RATE}
+  btcd:
+    container_name: btcd
+    hostname: btcd
+    # build: https://github.com/btcsuite/btcd.git#master
+    image: btcsuite/btcd:latest
+    restart: unless-stopped
+    volumes:
+      - btcd-data:/root/.btcd
+    ports:
+      - 8333:8333
+      - 8334:8334
+    command: [  # --rpcuser=rpcUsername --rpcpass=rpcPassword --rpclisten=0.0.0.0:8334
+        "--rpcuser=rpcUsername",
+        "--rpclisten=0.0.0.0:8334",
+        "--rpcpass=rpcPassword",
+        # "-h",
+    ]
+
+volumes:
+  btcd-data:

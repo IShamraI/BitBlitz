@@ -44,17 +44,6 @@ func PublicKeyToAddress(publicKey ecdsa.PublicKey) (string, error) {
 	return bech32Addr, nil
 }
 
-// Sha256Checksum calculates the double SHA256 hash of the input and returns the
-// first four bytes of the result. This is used to create the checksum for a
-// Bitcoin transaction's input scripts and outputs.
-//
-// The resulting slice should be exactly four bytes long.
-func Sha256Checksum(input []byte) []byte {
-	hash := sha256.Sum256(input)  // Calculate the first SHA256 hash
-	hash = sha256.Sum256(hash[:]) // Calculate the second SHA256 hash
-	return hash[:4]               // Return the first four bytes of the second hash
-}
-
 // GenerateKeyAndAddress generates a new private key and corresponding Bitcoin
 // address using secp256k1 elliptic curve cryptography. The private key is
 // encoded in hex and the address is in bech32 format.

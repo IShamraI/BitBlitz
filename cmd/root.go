@@ -5,20 +5,21 @@ import (
 	"log"
 	"os"
 	"sync"
-	"time"
 
-	"github.com/IShamraI/BitBlitz/internal/bitcion"
+	"github.com/IShamraI/BitBlitz/internal/bitcoin"
 	"github.com/IShamraI/BitBlitz/internal/sys"
 	tgnotifyer "github.com/IShamraI/BitBlitz/internal/tg_notifyer"
 	"github.com/spf13/cobra"
 )
 
 var (
-	botToken     string = ""
-	chatID       string = ""
-	outputFile   string = "output.csv"
-	threadsNum   int    = 1
-	iterInterval        = 5 * time.Second
+	botToken            string = ""
+	chatID              string = ""
+	outputFile          string = "output.csv"
+	rate                int    = 100
+	workerPoolSize      int    = 10
+	workerPoolSizeLimit int    = 100
+	taskQueueThreshold         = 0.9
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -30,7 +31,12 @@ var rootCmd = &cobra.Command{
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		var wg sync.WaitGroup
-		var mutex sync.Mutex
+		// var mutex sync.Mutex
+		// var errLock *locker.Locker
+		// var tasksCount int = 0
+
+		// taskQueue := make(chan wallet.Wallet, 100)
+		// errLock = locker.New()
 
 		ip, err := sys.GetLocalIPv4()
 		if err != nil {
@@ -40,17 +46,66 @@ var rootCmd = &cobra.Command{
 		notifyer := tgnotifyer.New(tgnotifyer.WithToken(botToken), tgnotifyer.WithChatID(chatID))
 		notifyer.Notify(fmt.Sprintf("Started BTC Finder on: %s", ip))
 
-		for i := 0; i < threadsNum; i++ {
-			wg.Add(1)
-			go bitcion.NewWorker(i,
-				bitcion.WithMutex(&mutex),
-				bitcion.WithWaitGroup(&wg),
-				bitcion.WithOutput(outputFile),
-				bitcion.WithNotifyer(notifyer),
-				bitcion.WithCheckInterval(iterInterval),
-			).Start()
-			time.Sleep(iterInterval / time.Duration(threadsNum))
-		}
+		bitcoin.Some()
+
+		// // Start workers
+		// for i := 0; i < workerPoolSize; i++ {
+		// 	wg.Add(1)
+		// 	log.Printf("Starting worker %d", i)
+		// 	go func(workerID int) {
+		// 		defer wg.Done()
+		// 		bitcoin.NewWorker(workerID,
+		// 			bitcoin.WithMutex(&mutex),
+		// 			bitcoin.WithWaitGroup(&wg),
+		// 			bitcoin.WithOutput(outputFile),
+		// 			bitcoin.WithNotifyer(notifyer),
+		// 			bitcoin.WithErrLock(errLock),
+		// 		).Start(taskQueue)
+		// 	}(i)
+		// }
+
+		// // Generate tasks with rate limiting
+		// wg.Add(1)
+		// log.Printf("Starting task generator")
+		// go func() {
+		// 	defer wg.Done()
+		// 	ticker := time.NewTicker(time.Second / time.Duration(rate))
+		// 	for _ = range ticker.C {
+		// 		// Generate task
+		// 		go func() {
+		// 			task, err := wallet.GenWallet()
+		// 			if err != nil {
+		// 				log.Fatalf("Failed to generate wallet: %s", err)
+		// 			}
+		// 			tasksCount++
+		// 			taskQueue <- *task
+		// 		}()
+		// 	}
+		// }()
+
+		// ticker := time.NewTicker(10 * time.Second)
+		// log.Printf("Starting status checker")
+		// for _ = range ticker.C {
+		// 	log.Printf("Qlength: %d, Qcapacity: %d, Qutil: %.2f, Task count: %d, Worker pool size: %d",
+		// 		len(taskQueue), cap(taskQueue), float64(len(taskQueue))/float64(cap(taskQueue)), tasksCount, workerPoolSize)
+		// 	if float64(len(taskQueue))/float64(cap(taskQueue)) > taskQueueThreshold && workerPoolSize < workerPoolSizeLimit {
+		// 		// Add additional worker if queue size exceeds threshold
+		// 		log.Println("Adding additional worker")
+		// 		wg.Add(1)
+		// 		go func(workerID int) {
+		// 			defer wg.Done()
+		// 			log.Printf("Starting worker %d", workerID)
+		// 			bitcoin.NewWorker(workerID,
+		// 				bitcoin.WithMutex(&mutex),
+		// 				bitcoin.WithWaitGroup(&wg),
+		// 				bitcoin.WithOutput(outputFile),
+		// 				bitcoin.WithNotifyer(notifyer),
+		// 			).Start(taskQueue)
+		// 			log.Printf("Worker %d finished", workerID)
+		// 		}(workerPoolSize)
+		// 		workerPoolSize++
+		// 	}
+		// }
 
 		wg.Wait()
 	},
@@ -67,8 +122,8 @@ func init() {
 	rootCmd.Flags().StringVarP(&botToken, "bot-token", "t", botToken, "Telegram bot token")
 	rootCmd.Flags().StringVarP(&chatID, "chat-id", "c", chatID, "Telegram chat ID")
 	rootCmd.Flags().StringVarP(&outputFile, "output-file", "o", outputFile, "Output file")
-	rootCmd.Flags().IntVarP(&threadsNum, "threads", "n", threadsNum, "Number of threads")
-	rootCmd.Flags().DurationVarP(&iterInterval, "interval", "i", iterInterval, "Interval between iterations")
+	rootCmd.Flags().IntVarP(&rate, "rate", "r", rate, "Rate of checks per second")
+	// rootCmd.Flags().DurationVarP(&iterInterval, "interval", "i", iterInterval, "Interval between iterations")
 	// Check if flags are set to default values and fetch values from environment variables if needed
 	if botToken == "" {
 		botToken = os.Getenv("BOT_TOKEN")
@@ -79,23 +134,13 @@ func init() {
 	if outputFile == "output.csv" {
 		outputFile = os.Getenv("OUTPUT_FILE")
 	}
-	if threadsNum == 1 {
-		threadsEnv := os.Getenv("THREADS")
-		if threadsEnv != "" {
-			_, err := fmt.Sscanf(threadsEnv, "%d", &threadsNum)
+	if rate == 100 {
+		rateEnv := os.Getenv("RATE")
+		if rateEnv != "" {
+			_, err := fmt.Sscanf(rateEnv, "%d", &rate)
 			if err != nil {
 				log.Fatalf("Failed to parse THREADS: %v", err)
 			}
-		}
-	}
-	if iterInterval == 5*time.Second {
-		iterIntervalEnv := os.Getenv("INTERVAL")
-		if iterIntervalEnv != "" {
-			parsedInterval, err := time.ParseDuration(iterIntervalEnv)
-			if err != nil {
-				log.Fatalf("Failed to parse INTERVAL: %v", err)
-			}
-			iterInterval = parsedInterval
 		}
 	}
 }

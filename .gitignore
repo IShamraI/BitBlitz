@@ -21,3 +21,5 @@
 go.work
 BitBlitz
 *.csv
+bitcoin*
+btcd-data/

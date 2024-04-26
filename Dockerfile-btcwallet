@@ -1,0 +1,21 @@
+FROM alpine as wallet-builder
+
+# LABEL maintainer="wallet"
+ENV GOPATH=/go \
+    PROJ_DIR=github.com/btcsuite/btcwallet
+
+RUN apk add --no-cache git glide go musl-dev \
+ && mkdir -p $GOPATH/src && cd $GOPATH/src \
+ && go get -u ${PROJ_DIR} ${PROJ_DIR} \
+ && cd $PROJ_DIR \
+ && glide install \
+ && go install . ./cmd/... \
+ && apk del glide git go musl-dev \
+ && rm -rf /apk /tmp/* /var/cache/apk/* $GOPATH/src/* -->
+ 
+RUN go get -u github.com/btcsuite/btcwallet $GOPATH/src/github.com/btcsuite/btcwallet && \
+    cd $GOPATH/src/github.com/btcsuite/btcwallet && \
+    glide install && \
+    go install . ./cmd/...
+ 
+CMD ["/go/bin/btcwallet", "--help"]
